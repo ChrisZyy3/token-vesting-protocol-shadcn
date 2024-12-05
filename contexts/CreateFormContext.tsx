@@ -19,18 +19,38 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>
 
+interface Recipient {
+  amount: string
+  walletAddress: string
+  contractTitle: string
+}
+
+interface RecipientsData {
+  recipients: Recipient[]
+  totalVested: string
+  remainingBalance: string
+}
+
 interface CreateFormContextType {
   formData: FormData | null
+  recipients: RecipientsData | null
   setFormData: (data: FormData) => void
+  setFormRecipients: (data: RecipientsData) => void
 }
 
 const CreateFormContext = createContext<CreateFormContextType | undefined>(undefined)
 
 export function CreateFormProvider({ children }: { children: React.ReactNode }) {
   const [formData, setFormData] = useState<FormData | null>(null)
+  const [recipients, setRecipients] = useState<RecipientsData | null>(null)
 
   return (
-    <CreateFormContext.Provider value={{ formData, setFormData }}>
+    <CreateFormContext.Provider value={{
+      formData,
+      recipients,
+      setFormData,
+      setFormRecipients: setRecipients
+    }}>
       {children}
     </CreateFormContext.Provider>
   )

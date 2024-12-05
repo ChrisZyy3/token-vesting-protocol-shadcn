@@ -30,7 +30,7 @@ interface Recipient {
 
 export default function Recipients() {
   const router = useRouter()
-  const { formData } = useCreateForm()
+  const { formData, recipients: contextRecipients, setFormRecipients } = useCreateForm()
   const [recipients, setRecipients] = useState<Recipient[]>([
     {
       id: 1,
@@ -127,6 +127,52 @@ export default function Recipients() {
     ];
     setRecipients(newRecipients);
   }
+
+  const handleReview = () => {
+    // 验证所有必填字段
+    const isValid = recipients.every(r => r.amount && r.walletAddress)
+
+    if (!isValid) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in all required fields for each recipient",
+      })
+      return
+    }
+
+    // 计算总额
+    const totalVested = recipients.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0)
+
+    // 提交到 Context
+    const recipientsData = {
+      recipients: recipients.map(r => ({
+        amount: r.amount,
+        walletAddress: r.walletAddress,
+        contractTitle: r.contractTitle
+      })),
+      totalVested: totalVested.toFixed(9),
+      remainingBalance: remainingAmount
+    }
+
+    setFormRecipients(recipientsData)
+    router.push("/review")
+  }
+
+  // 从 Context 恢复数据
+  useEffect(() => {
+    if (contextRecipients) {
+      const restoredRecipients = contextRecipients.recipients.map((r, index) => ({
+        id: index + 1,
+        amount: r.amount,
+        walletAddress: r.walletAddress,
+        contractTitle: r.contractTitle,
+        emailAddress: '', // Context 中没有存这个字段，保持为空
+      }))
+      setRecipients(restoredRecipients)
+      setRemainingAmount(contextRecipients.remainingBalance)
+    }
+  }, [contextRecipients])
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -288,7 +334,11 @@ export default function Recipients() {
           >
             Previous Step
           </Button>
-          <Button className="w-full" size="lg">
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleReview}
+          >
             Review Contract
           </Button>
         </div>

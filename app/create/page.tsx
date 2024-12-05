@@ -91,16 +91,27 @@ export default function CreatePage() {
         unit: "year",
       },
       unlockSchedule: "monthly",
-      startUponCreation: false,
-      autoClaim: false,
+      startUponCreation: true,
+      autoClaim: true,
     },
-  });
+  })
 
   useEffect(() => {
     if (formData) {
-      form.reset(formData);
+      form.reset({
+        token: formData.token,
+        vestingDuration: {
+          value: formData.vestingDuration.value,
+          unit: formData.vestingDuration.unit,
+        },
+        unlockSchedule: formData.unlockSchedule,
+        startUponCreation: formData.startUponCreation,
+        startDate: formData.startDate,
+        startTime: formData.startTime,
+        autoClaim: formData.autoClaim,
+      })
     }
-  }, [formData, form]);
+  }, [formData, form])
 
   useEffect(() => {
     async function fetchUserProfile() {
