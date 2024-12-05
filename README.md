@@ -1,6 +1,6 @@
-# next-template
+# EasyLocking Protocol
 
-A Next.js 13 template for building apps with Radix UI and Tailwind CSS.
+A protocol for creating and checking vesting assets on the Sui blockchain.
 
 ## Usage
 
