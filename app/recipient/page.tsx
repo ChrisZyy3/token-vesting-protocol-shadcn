@@ -107,10 +107,12 @@ export default function Recipients() {
     updateRemainingAmount(newRecipients);
   }
 
-  if (!formData) {
-    router.push("/create")
-    return null
-  }
+  useEffect(() => {
+    if (!formData) {
+      router.push("/create")
+      return
+    }
+  }, [formData, router])
 
   const addRecipient = () => {
     setOpenRecipientId(recipients.length + 1);
@@ -189,26 +191,26 @@ export default function Recipients() {
             <div className="flex justify-between">
               <dt>Token:</dt>
               <dd className="flex items-center gap-2">
-                <span>{formData.token.split("::").pop()}</span>
-                <span>({+formData.tokenBalance})</span>
+                <span>{formData?.token.split("::").pop()}</span>
+                <span>({formData?.tokenBalance})</span>
               </dd>
             </div>
             <div className="flex justify-between">
               <dt>Duration:</dt>
-              <dd>{formData.vestingDuration.value} {formData.vestingDuration.unit}(s)</dd>
+              <dd>{formData?.vestingDuration.value} {formData?.vestingDuration.unit}(s)</dd>
             </div>
             <div className="flex justify-between">
               <dt>Unlock Schedule:</dt>
-              <dd>{formData.unlockSchedule}</dd>
+              <dd>{formData?.unlockSchedule}</dd>
             </div>
             <div className="flex justify-between">
               <dt>Start Upon Creation:</dt>
-              <dd>{formData.startUponCreation ? "Yes" : "No"}</dd>
+              <dd>{formData?.startUponCreation ? "Yes" : "No"}</dd>
             </div>
-            {!formData.startUponCreation && formData.startDate && (
+            {!formData?.startUponCreation && formData?.startDate && (
               <div className="flex justify-between">
                 <dt>Start Date:</dt>
-                <dd>{formData.startDate.toLocaleDateString()}</dd>
+                <dd>{formData?.startDate.toLocaleDateString()}</dd>
               </div>
             )}
           </dl>
