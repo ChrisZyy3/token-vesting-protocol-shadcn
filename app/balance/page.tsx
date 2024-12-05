@@ -1,14 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import {
   CategorizedObjects,
   calculateTotalBalance,
   formatBalance,
 } from "@/utils/assetsHelpers"
-import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit"
-
+import { useCurrentAccount } from "@mysten/dapp-kit"
 import { getUserProfile } from "../../lib/contracts"
 
 export default function Home() {
@@ -20,6 +18,7 @@ export default function Home() {
       if (account?.address) {
         try {
           const profile = await getUserProfile(account.address)
+          console.log('profile', profile);
           setUserObjects(profile)
         } catch (error) {
           console.error("Error fetching user profile:", error)
@@ -102,6 +101,7 @@ export default function Home() {
           </h3>
         </div>
       )}
+
     </div>
   )
 }

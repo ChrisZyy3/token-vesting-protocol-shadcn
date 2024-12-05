@@ -1,14 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowUpRight, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { useRouter } from "next/navigation"
 import { useCreateForm } from "@/contexts/CreateFormContext"
+import { useToast } from "../../hooks/use-toast"
 
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  CategorizedObjects,
+  calculateTotalBalance,
+  formatBalance,
+} from "@/utils/assetsHelpers"
+import { useCurrentAccount } from "@mysten/dapp-kit"
+import { suiClient } from "@/config"
+import { getUserProfile } from "../../lib/contracts"
+
 
 interface Recipient {
   id: number
@@ -30,7 +40,72 @@ export default function Recipients() {
       emailAddress: '',
     },
   ])
-  const [remainingAmount] = useState('0.4037 SUI')
+
+  const account = useCurrentAccount()
+  const [userObjects, setUserObjects] = useState<CategorizedObjects | null>(null)
+
+  useEffect(() => {
+    async function fetchUserProfile() {
+      if (account?.address) {
+        try {
+          const profile = await getUserProfile(account.address)
+          console.log('profile', profile);
+          setUserObjects(profile)
+        } catch (error) {
+          console.error("Error fetching user profile:", error)
+        }
+      }
+    }
+
+    fetchUserProfile()
+  }, [account])
+
+  const [remainingAmount, setRemainingAmount] = useState(formData?.tokenBalance || '0')
+
+  const updateRemainingAmount = (newRecipients: Recipient[]) => {
+    const totalAllocated = newRecipients.reduce((sum, recipient) => {
+      return sum + (parseFloat(recipient.amount) || 0)
+    }, 0)
+    const newRemainingAmount = (parseFloat(formData?.tokenBalance || '0') - totalAllocated).toFixed(9)
+    setRemainingAmount(newRemainingAmount)
+  }
+
+  const [openRecipientId, setOpenRecipientId] = useState<number>(1);
+
+  const { toast } = useToast()
+
+  const handleAmountChange = (index: number, value: string) => {
+    const newRecipients = [...recipients];
+    const parsedValue = parseFloat(value);
+    const currentTotal = recipients.reduce((sum, r, i) =>
+      i !== index ? sum + (parseFloat(r.amount) || 0) : sum, 0
+    );
+
+    const totalAmount = parsedValue + currentTotal;
+    const maxAmount = parseFloat(formData?.tokenBalance || '0');
+
+    if (parsedValue < 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid amount",
+        description: "Amount cannot be negative.",
+      })
+      return;
+    }
+
+    if (totalAmount > maxAmount) {
+      toast({
+        variant: "destructive",
+        title: "Insufficient balance",
+        description: `Total amount cannot exceed ${maxAmount}`,
+      })
+      return;
+    }
+
+    newRecipients[index].amount = value;
+    setRecipients(newRecipients);
+    updateRemainingAmount(newRecipients);
+  }
 
   if (!formData) {
     router.push("/create")
@@ -38,7 +113,9 @@ export default function Recipients() {
   }
 
   const addRecipient = () => {
-    setRecipients([
+    setOpenRecipientId(recipients.length + 1);
+
+    const newRecipients = [
       ...recipients,
       {
         id: recipients.length + 1,
@@ -47,7 +124,8 @@ export default function Recipients() {
         contractTitle: '',
         emailAddress: '',
       },
-    ])
+    ];
+    setRecipients(newRecipients);
   }
 
   return (
@@ -64,7 +142,10 @@ export default function Recipients() {
           <dl className="space-y-2 text-sm text-muted-foreground">
             <div className="flex justify-between">
               <dt>Token:</dt>
-              <dd>SUI</dd>
+              <dd className="flex items-center gap-2">
+                <span>{formData.token.split("::").pop()}</span>
+                <span>({+formData.tokenBalance})</span>
+              </dd>
             </div>
             <div className="flex justify-between">
               <dt>Duration:</dt>
@@ -92,11 +173,27 @@ export default function Recipients() {
             <Collapsible
               key={recipient.id}
               className="overflow-hidden rounded-lg border border-input bg-card"
-              defaultOpen
+              open={recipient.id === openRecipientId}
+              onOpenChange={(open) => {
+                if (open) {
+                  setOpenRecipientId(recipient.id);
+                }
+              }}
             >
               <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-accent hover:text-accent-foreground">
-                <span className="text-foreground">Recipient {recipient.id}</span>
-                <ChevronDown className="size-4" />
+                <div className="flex items-center gap-2">
+                  <span className="text-foreground">Recipient {recipient.id}</span>
+                  {recipient.amount && (
+                    <span className="text-sm text-muted-foreground">
+                      ({recipient.amount})
+                    </span>
+                  )}
+                </div>
+                {recipient.id === openRecipientId ? (
+                  <ChevronUp className="size-4" />
+                ) : (
+                    <ChevronDown className="size-4" />
+                )}
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="space-y-4 p-4">
@@ -116,11 +213,7 @@ export default function Recipients() {
                       placeholder="0.00"
                       className="border-input bg-background"
                       value={recipient.amount}
-                      onChange={(e) => {
-                        const newRecipients = [...recipients]
-                        newRecipients[index].amount = e.target.value
-                        setRecipients(newRecipients)
-                      }}
+                      onChange={(e) => handleAmountChange(index, e.target.value)}
                     />
                   </div>
 
@@ -154,9 +247,6 @@ export default function Recipients() {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Make sure this is not a centralized exchange address.
-                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -170,23 +260,6 @@ export default function Recipients() {
                       onChange={(e) => {
                         const newRecipients = [...recipients]
                         newRecipients[index].contractTitle = e.target.value
-                        setRecipients(newRecipients)
-                      }}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>
-                      Recipient Email Address <span className="text-muted-foreground">(optional)</span>
-                    </Label>
-                    <Input
-                      type="email"
-                      placeholder="Optional email to notify"
-                      className="border-input bg-background"
-                      value={recipient.emailAddress}
-                      onChange={(e) => {
-                        const newRecipients = [...recipients]
-                        newRecipients[index].emailAddress = e.target.value
                         setRecipients(newRecipients)
                       }}
                     />

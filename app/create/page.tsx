@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { format, addMonths, addYears } from "date-fns";
 import { Calendar } from 'lucide-react';
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +8,9 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useRouter } from "next/navigation"
 import { useCreateForm } from "@/contexts/CreateFormContext"
+import { useCurrentAccount } from "@mysten/dapp-kit"
+import { getUserProfile } from "../../lib/contracts"
+import { calculateTotalBalance, formatBalance, CategorizedObjects } from "@/utils/assetsHelpers"
 
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -31,6 +34,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Balance } from "@/utils/assetsHelpers";
+function formatCoinType(coinType: string, maxLength: number = 10): string {
+  if (coinType.length <= maxLength) return coinType;
+
+  const start = coinType.slice(0, 4);
+  const end = coinType.slice(-4);
+  return `${start}...${end}`;
+}
 
 const formSchema = z.object({
   token: z.string({
@@ -47,9 +58,29 @@ const formSchema = z.object({
   autoClaim: z.boolean(),
 });
 
+function TokenDisplay({ coinType, coins }: { coinType: string, coins: any[] }) {
+  const totalBalance = calculateTotalBalance(coins)
+  return (
+    <div className="flex w-full items-center justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="size-5 shrink-0 rounded-full bg-blue-500" />
+        <span className="truncate">{coinType.split("::").pop()}</span>
+      </div>
+      <span className="shrink-0 text-sm text-muted-foreground">
+        ({formatCoinType(coinType)})
+      </span>
+      <span className="shrink-0 text-sm text-muted-foreground">
+        {formatBalance(totalBalance)}
+      </span>
+    </div>
+  )
+}
+
 export default function CreatePage() {
   const router = useRouter()
   const { formData, setFormData } = useCreateForm()
+  const account = useCurrentAccount()
+  const [userObjects, setUserObjects] = useState<CategorizedObjects | null>(null)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -71,13 +102,35 @@ export default function CreatePage() {
     }
   }, [formData, form]);
 
+  useEffect(() => {
+    async function fetchUserProfile() {
+      if (account?.address) {
+        try {
+          const profile = await getUserProfile(account.address)
+          setUserObjects(profile)
+        } catch (error) {
+          console.error("Error fetching user profile:", error)
+        }
+      }
+    }
+
+    fetchUserProfile()
+  }, [account])
+
+  useEffect(() => {
+    if (userObjects && Object.keys(userObjects.coins).length > 0) {
+      const firstCoinType = Object.keys(userObjects.coins)[0];
+      form.setValue("token", firstCoinType);
+    }
+  }, [userObjects, form]);
+
   const startUponCreation = form.watch("startUponCreation");
   const vestingDuration = form.watch("vestingDuration");
 
   const calculateEndDate = () => {
     const startDate = form.getValues("startDate") || new Date();
     const value = parseInt(vestingDuration.value) || 0;
-    
+
     if (vestingDuration.unit === "month") {
       return addMonths(startDate, value);
     } else {
@@ -86,7 +139,15 @@ export default function CreatePage() {
   };
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    setFormData(values)
+    const selectedTokenBalance: Balance | undefined = userObjects?.coins[values.token]
+      && calculateTotalBalance(userObjects.coins[values.token])
+    console.log('selectedTokenBalance', selectedTokenBalance, selectedTokenBalance && formatBalance(selectedTokenBalance))
+    setFormData({
+      ...values,
+      tokenBalance: selectedTokenBalance && formatBalance(selectedTokenBalance) || '0'
+    })
+    console.log('Form submitted with values:', formData)
+
     router.push("/recipient")
   }
 
@@ -110,20 +171,21 @@ export default function CreatePage() {
                     <FormControl>
                       <SelectTrigger className="w-full border-input bg-background">
                         <SelectValue>
-                          <div className="flex items-center gap-2">
-                            <div className="size-5 rounded-full bg-blue-500" />
-                            SUI (0x2::SUI)
-                          </div>
+                          {userObjects?.coins[field.value] && (
+                            <TokenDisplay
+                              coinType={field.value}
+                              coins={userObjects.coins[field.value]}
+                            />
+                          )}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="sui">
-                        <div className="flex items-center gap-2">
-                          <div className="size-5 rounded-full bg-blue-500" />
-                          SUI (0x2::SUI)
-                        </div>
-                      </SelectItem>
+                      {userObjects && Object.entries(userObjects.coins).map(([coinType, coins]) => (
+                        <SelectItem key={coinType} value={coinType}>
+                          <TokenDisplay coinType={coinType} coins={coins} />
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

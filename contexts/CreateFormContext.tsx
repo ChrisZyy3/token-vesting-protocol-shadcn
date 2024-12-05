@@ -5,6 +5,7 @@ import * as z from "zod"
 
 const formSchema = z.object({
   token: z.string(),
+  tokenBalance: z.string(),
   vestingDuration: z.object({
     value: z.string(),
     unit: z.enum(["month", "year"]),
