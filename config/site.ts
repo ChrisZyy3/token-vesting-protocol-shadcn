@@ -17,6 +17,10 @@ export const siteConfig = {
       title: "Balance",
       href: "/balance",
     },
+    {
+      title: "List",
+      href: "/list",
+    },
   ],
   links: {
     twitter: "https://twitter.com/shadcn",

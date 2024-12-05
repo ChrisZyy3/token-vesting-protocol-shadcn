@@ -7,22 +7,14 @@ import { Icons } from "@/components/icons"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
 
-export function MainNav() {
-  const items: { title: string; href: string }[] = [
-    {
-      title: "Home",
-      href: "/",
-    },
-    {
-      title: "Create",
-      href: "/create",
-    },
-    {
-      title: "Balance",
-      href: "/balance",
-    },
-  ]
+interface MainNavProps {
+  items: {
+    title: string
+    href: string
+  }[]
+}
 
+export function MainNav({ items }: MainNavProps) {
   return (
     <div className="flex gap-6 md:gap-10">
       <Link href="/" className="flex items-center space-x-2">
