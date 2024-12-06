@@ -7,20 +7,16 @@ const network = (process.env.NEXT_PUBLIC_NETWORK as Network) || "mainnet";
 
 const { networkConfig, useNetworkVariable, useNetworkVariables } = createNetworkConfig({
     testnet: {
-        url: getFullnodeUrl("testnet"),
-        variables: {},
+        url: getFullnodeUrl("testnet")
     },
     mainnet: {
-        url: getFullnodeUrl("mainnet"),
-        variables: {},
+        url: getFullnodeUrl("mainnet")
     },
     devnet: {
-        url: getFullnodeUrl("devnet"),
-        variables: {},
+        url: getFullnodeUrl("devnet")
     },
     localnet: {
-        url: getFullnodeUrl("localnet"),
-        variables: {},
+        url: getFullnodeUrl("localnet")
     },
 });
 
