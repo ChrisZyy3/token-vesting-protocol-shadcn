@@ -19,6 +19,7 @@ interface VestingSchedule {
   nextUnlock: string;
   status: 'active' | 'pending' | 'completed';
   progress: number;
+  claimableAmount: string;
 }
 
 export default function Dashboard() {
@@ -40,6 +41,7 @@ export default function Dashboard() {
         nextUnlock: '2024-04-01',
         status: 'active',
         progress: 25,
+        claimableAmount: '500',
       },
       {
         id: '0x456',
@@ -53,6 +55,7 @@ export default function Dashboard() {
         nextUnlock: '2024-04-01',
         status: 'pending',
         progress: 0,
+        claimableAmount: '0',
       },
     ]);
   }, []);
@@ -124,6 +127,11 @@ export default function Dashboard() {
                 <div className="text-right">
                   <p className="font-medium text-foreground">{schedule.vestedAmount} / {schedule.totalAmount}</p>
                   <p className="text-sm text-muted-foreground">{schedule.progress}% Vested</p>
+                  {schedule.claimableAmount !== '0' && (
+                    <p className="mt-1 text-sm font-medium text-primary">
+                      {schedule.claimableAmount} {schedule.tokenSymbol} Available
+                    </p>
+                  )}
                 </div>
               </div>
               <Progress value={schedule.progress} className="mt-4" />
@@ -142,11 +150,23 @@ export default function Dashboard() {
                 <p className="font-medium text-foreground">{schedule.nextUnlock}</p>
               </div>
             </div>
-            <div className="border-t border-border bg-muted/50 p-2 dark:border-border/50">
-              <button className="flex w-full items-center justify-center gap-1 rounded-sm py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <div className="flex items-center justify-between border-t border-border bg-muted/50 p-2 dark:border-border/50">
+              <button className="flex items-center gap-1 rounded-sm px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                 View Details
                 <ArrowUpRight className="size-4" />
               </button>
+              {schedule.claimableAmount !== '0' && (
+                <button
+                  className="flex items-center gap-2 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30 dark:shadow-primary/10 dark:hover:shadow-primary/20"
+                  onClick={() => {
+                    // TODO: 处理 claim 逻辑
+                    console.log('Claiming tokens:', schedule.id);
+                  }}
+                >
+                  <Wallet className="size-4" />
+                  Claim Tokens
+                </button>
+              )}
             </div>
           </Card>
         ))}
