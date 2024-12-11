@@ -17,9 +17,13 @@ export const siteConfig = {
       title: "List",
       href: "/list",
     },
+    // {
+    //   title: "Balance",
+    //   href: "/balance",
+    // },
     {
-      title: "Balance",
-      href: "/balance",
+      title: "Dashboard",
+      href: "/dashboard",
     },
   ],
   links: {

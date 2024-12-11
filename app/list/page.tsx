@@ -48,7 +48,7 @@ export default function List() {
     <div className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-4xl space-y-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-foreground">My Vesting Contracts</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Vesting Contracts</h1>
           <Button onClick={() => router.push('/create')}>
             Create New Contract
           </Button>
