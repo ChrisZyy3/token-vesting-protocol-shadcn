@@ -18,6 +18,8 @@ import {
 import { useCurrentAccount } from "@mysten/dapp-kit"
 import { suiClient } from "@/config"
 import { getUserProfile } from "../../lib/contracts"
+import { addMonths } from 'date-fns';
+import { addYears } from 'date-fns';
 
 
 interface Recipient {
@@ -26,6 +28,15 @@ interface Recipient {
   walletAddress: string
   contractTitle: string
   emailAddress: string
+}
+
+function calculateEndDate(startDate: Date, duration: { value: string; unit: "month" | "year" }) {
+  const value = parseInt(duration.value)
+  if (duration.unit === "month") {
+    return addMonths(startDate, value)
+  } else {
+    return addYears(startDate, value)
+  }
 }
 
 export default function Recipients() {
@@ -176,6 +187,9 @@ export default function Recipients() {
     }
   }, [contextRecipients])
 
+  // 计算结束日期
+  const endDate = formData?.startDate ? calculateEndDate(formData.startDate, formData.vestingDuration) : null;
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-2xl space-y-8">
@@ -204,15 +218,13 @@ export default function Recipients() {
               <dd>{formData?.unlockSchedule}</dd>
             </div>
             <div className="flex justify-between">
-              <dt>Start Upon Creation:</dt>
-              <dd>{formData?.startUponCreation ? "Yes" : "No"}</dd>
+              <dt>Start Date:</dt>
+              <dd>{formData?.startDate.toLocaleDateString()}</dd>
             </div>
-            {!formData?.startUponCreation && formData?.startDate && (
-              <div className="flex justify-between">
-                <dt>Start Date:</dt>
-                <dd>{formData?.startDate.toLocaleDateString()}</dd>
-              </div>
-            )}
+            <div className="flex justify-between">
+              <dt>End Date:</dt>
+              <dd>{endDate?.toLocaleDateString()}</dd>
+            </div>
           </dl>
         </div>
 

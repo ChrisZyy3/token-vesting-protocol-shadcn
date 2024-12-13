@@ -52,10 +52,8 @@ const formSchema = z.object({
     unit: z.enum(["month", "year"]),
   }),
   unlockSchedule: z.enum(["weekly", "bi-weekly", "monthly", "quarterly"]),
-  startUponCreation: z.boolean(),
-  startDate: z.date().optional(),
+  startDate: z.date(),
   startTime: z.string().optional(),
-  autoClaim: z.boolean(),
 });
 
 function TokenDisplay({ coinType, coins }: { coinType: string, coins: any[] }) {
@@ -91,8 +89,7 @@ export default function CreatePage() {
         unit: "year",
       },
       unlockSchedule: "monthly",
-      startUponCreation: true,
-      autoClaim: true,
+      startDate: new Date(),
     },
   })
 
@@ -105,10 +102,8 @@ export default function CreatePage() {
           unit: formData.vestingDuration.unit,
         },
         unlockSchedule: formData.unlockSchedule,
-        startUponCreation: formData.startUponCreation,
         startDate: formData.startDate,
         startTime: formData.startTime,
-        autoClaim: formData.autoClaim,
       })
     }
   }, [formData, form])
@@ -135,7 +130,7 @@ export default function CreatePage() {
     }
   }, [userObjects, form]);
 
-  const startUponCreation = form.watch("startUponCreation");
+  const startDate = form.watch("startDate");
   const vestingDuration = form.watch("vestingDuration");
 
   const calculateEndDate = () => {
@@ -280,109 +275,63 @@ export default function CreatePage() {
               )}
             />
 
-            <Card className="border-input bg-card">
+            <Card>
               <CardContent className="space-y-4 p-4">
                 <FormField
                   control={form.control}
-                  name="startUponCreation"
+                  name="startDate"
                   render={({ field }) => (
-                    <FormItem className="flex items-center justify-between">
-                      <FormLabel>Start Upon Contract Creation</FormLabel>
+                    <FormItem className="space-y-2">
+                      <FormLabel>Start Date</FormLabel>
                       <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start border-input bg-background text-left font-normal"
+                            >
+                              <Calendar className="mr-2 size-4" />
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {!startUponCreation && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="startDate"
-                      render={({ field }) => (
-                        <FormItem className="space-y-2">
-                          <FormLabel>Start Date</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  className="w-full justify-start border-input bg-background text-left font-normal"
-                                >
-                                  <Calendar className="mr-2 size-4" />
-                                  {field.value ? (
-                                    format(field.value, "PPP")
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <CalendarComponent
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="startTime"
-                      render={({ field }) => (
-                        <FormItem className="space-y-2">
-                          <FormLabel>Start Time</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="time"
-                              className="border-input bg-background"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <FormField
-              control={form.control}
-              name="autoClaim"
-              render={({ field }) => (
-                <Card className="border-input bg-card">
-                  <CardContent className="p-4">
-                    <FormItem className="flex items-center justify-between">
-                      <div>
-                        <FormLabel>Auto-Claim</FormLabel>
-                        <p className="text-sm text-muted-foreground">
-                          Tokens get claimed to recipient wallet automatically
-                        </p>
-                      </div>
+                <FormField
+                  control={form.control}
+                  name="startTime"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel>Start Time (Optional)</FormLabel>
                       <FormControl>
-                        <Switch
-                          checked={true}
-                          onCheckedChange={field.onChange}
-                          disabled
+                        <Input
+                          type="time"
+                          className="border-input bg-background"
+                          {...field}
                         />
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
-                  </CardContent>
-                </Card>
-              )}
-            />
+                  )}
+                />
+              </CardContent>
+            </Card>
 
             <Button type="submit" className="w-full" size="lg">
               Next Step

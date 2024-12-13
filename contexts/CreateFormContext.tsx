@@ -11,10 +11,8 @@ const formSchema = z.object({
     unit: z.enum(["month", "year"]),
   }),
   unlockSchedule: z.enum(["weekly", "bi-weekly", "monthly", "quarterly"]),
-  startUponCreation: z.boolean(),
-  startDate: z.date().optional(),
+  startDate: z.date(),
   startTime: z.string().optional(),
-  autoClaim: z.boolean(),
 })
 
 type FormData = z.infer<typeof formSchema>

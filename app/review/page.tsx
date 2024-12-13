@@ -3,9 +3,19 @@
 import { useEffect } from 'react';
 import { useRouter } from "next/navigation"
 import { useCreateForm } from "@/contexts/CreateFormContext"
+import { addMonths, addYears } from "date-fns"
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+
+function calculateEndDate(startDate: Date, duration: { value: string; unit: "month" | "year" }) {
+  const value = parseInt(duration.value)
+  if (duration.unit === "month") {
+    return addMonths(startDate, value)
+  } else {
+    return addYears(startDate, value)
+  }
+}
 
 export default function Review() {
   const router = useRouter()
@@ -30,6 +40,9 @@ export default function Review() {
       remainingBalance: recipients.remainingBalance
     })
   }
+
+  // 计算结束日期
+  const endDate = calculateEndDate(formData.startDate, formData.vestingDuration);
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -71,15 +84,13 @@ export default function Review() {
                 <dd>{formData.unlockSchedule}</dd>
               </div>
               <div className="flex justify-between">
-                <dt>Start Upon Creation:</dt>
-                <dd>{formData.startUponCreation ? "Yes" : "No"}</dd>
+                <dt>Start Date:</dt>
+                <dd>{formData.startDate.toLocaleDateString()}</dd>
               </div>
-              {!formData.startUponCreation && formData.startDate && (
-                <div className="flex justify-between">
-                  <dt>Start Date:</dt>
-                  <dd>{formData.startDate.toLocaleDateString()}</dd>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <dt>End Date:</dt>
+                <dd>{endDate.toLocaleDateString()}</dd>
+              </div>
             </dl>
           </div>
 
