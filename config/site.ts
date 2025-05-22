@@ -1,18 +1,34 @@
 export type SiteConfig = typeof siteConfig
 
 export const siteConfig = {
-  name: "Next.js",
+  name: "EasyLocking Protocol",
   description:
-    "Beautifully designed components built with Radix UI and Tailwind CSS.",
+    "A protocol for creating and checking vesting assets on the Sui blockchain.",
   mainNav: [
     {
       title: "Home",
       href: "/",
     },
+    {
+      title: "Create",
+      href: "/create",
+    },
+    // {
+    //   title: "List",
+    //   href: "/list",
+    // },
+    // {
+    //   title: "Balance",
+    //   href: "/balance",
+    // },
+    {
+      title: "Dashboard",
+      href: "/dashboard",
+    },
   ],
   links: {
-    twitter: "https://twitter.com/shadcn",
-    github: "https://github.com/shadcn/ui",
+    twitter: "https://twitter.com/",
+    github: "https://github.com/chriszyy3",
     docs: "https://ui.shadcn.com",
   },
 }
