@@ -1,20 +1,17 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { format, addMonths, addYears } from "date-fns";
-import { Calendar } from 'lucide-react';
+import { format } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useRouter } from "next/navigation"
-import { useCreateForm } from "@/contexts/CreateFormContext"
-import { useCurrentAccount } from "@mysten/dapp-kit"
-import { getUserProfile } from "../../lib/contracts"
-import { calculateTotalBalance, formatBalance, CategorizedObjects } from "@/utils/assetsHelpers"
+import { useRouter } from "next/navigation";
+import { useCurrentAccount } from "@mysten/dapp-kit";
+import { getUserProfile } from "../../lib/contracts";
+import { calculateTotalBalance, formatBalance, CategorizedObjects } from "@/utils/assetsHelpers";
 
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -24,8 +21,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -33,11 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Balance } from "@/utils/assetsHelpers";
+import { useToast } from "@/hooks/use-toast";
+
 function formatCoinType(coinType: string, maxLength: number = 10): string {
   if (coinType.length <= maxLength) return coinType;
-
   const start = coinType.slice(0, 4);
   const end = coinType.slice(-4);
   return `${start}...${end}`;
@@ -45,19 +39,20 @@ function formatCoinType(coinType: string, maxLength: number = 10): string {
 
 const formSchema = z.object({
   token: z.string({
-    required_error: "Please select a token.",
+    required_error: "Please select a token to lock",
   }),
-  vestingDuration: z.object({
-    value: z.string(),
-    unit: z.enum(["month", "year"]),
+  amount: z.string({
+    required_error: "Please enter the amount to lock",
+  }).refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+    message: "Please enter a valid amount",
   }),
-  unlockSchedule: z.enum(["weekly", "bi-weekly", "monthly", "quarterly"]),
-  startDate: z.date(),
-  startTime: z.string().optional(),
+  lockDuration: z.enum(["3months", "6months", "1year", "2years"], {
+    required_error: "Please select a lock duration",
+  }),
 });
 
 function TokenDisplay({ coinType, coins }: { coinType: string, coins: any[] }) {
-  const totalBalance = calculateTotalBalance(coins)
+  const totalBalance = calculateTotalBalance(coins);
   return (
     <div className="flex w-full items-center justify-between gap-4">
       <div className="flex min-w-0 items-center gap-2">
@@ -65,276 +60,192 @@ function TokenDisplay({ coinType, coins }: { coinType: string, coins: any[] }) {
         <span className="truncate">{coinType.split("::").pop()}</span>
       </div>
       <span className="shrink-0 text-sm text-muted-foreground">
-        ({formatCoinType(coinType)})
-      </span>
-      <span className="shrink-0 text-sm text-muted-foreground">
         {formatBalance(totalBalance)}
       </span>
     </div>
-  )
+  );
 }
 
 export default function CreatePage() {
-  const router = useRouter()
-  const { formData, setFormData } = useCreateForm()
-  const account = useCurrentAccount()
-  const [userObjects, setUserObjects] = useState<CategorizedObjects | null>(null)
+  const router = useRouter();
+  const account = useCurrentAccount();
+  const { toast } = useToast();
+  const [userObjects, setUserObjects] = useState<CategorizedObjects | null>(null);
+  const [selectedTokenBalance, setSelectedTokenBalance] = useState<string>("0");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      token: "sui",
-      vestingDuration: {
-        value: "1",
-        unit: "year",
-      },
-      unlockSchedule: "monthly",
-      startDate: new Date(),
+      token: "",
+      amount: "",
+      lockDuration: "3months",
     },
-  })
-
-  useEffect(() => {
-    if (formData) {
-      form.reset({
-        token: formData.token,
-        vestingDuration: {
-          value: formData.vestingDuration.value,
-          unit: formData.vestingDuration.unit,
-        },
-        unlockSchedule: formData.unlockSchedule,
-        startDate: formData.startDate,
-        startTime: formData.startTime,
-      })
-    }
-  }, [formData, form])
+  });
 
   useEffect(() => {
     async function fetchUserProfile() {
       if (account?.address) {
         try {
-          const profile = await getUserProfile(account.address)
-          setUserObjects(profile)
+          const profile = await getUserProfile(account.address);
+          setUserObjects(profile);
         } catch (error) {
-          console.error("Error fetching user profile:", error)
+          console.error("Error fetching user profile:", error);
         }
       }
     }
 
-    fetchUserProfile()
-  }, [account])
+    fetchUserProfile();
+  }, [account]);
 
   useEffect(() => {
     if (userObjects && Object.keys(userObjects.coins).length > 0) {
       const firstCoinType = Object.keys(userObjects.coins)[0];
       form.setValue("token", firstCoinType);
+      updateSelectedTokenBalance(firstCoinType);
     }
   }, [userObjects, form]);
 
-  const startDate = form.watch("startDate");
-  const vestingDuration = form.watch("vestingDuration");
-
-  const calculateEndDate = () => {
-    const startDate = form.getValues("startDate") || new Date();
-    const value = parseInt(vestingDuration.value) || 0;
-
-    if (vestingDuration.unit === "month") {
-      return addMonths(startDate, value);
-    } else {
-      return addYears(startDate, value);
+  const updateSelectedTokenBalance = (coinType: string) => {
+    if (userObjects?.coins[coinType]) {
+      const balance = calculateTotalBalance(userObjects.coins[coinType]);
+      setSelectedTokenBalance(formatBalance(balance));
     }
   };
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const selectedTokenBalance: Balance | undefined = userObjects?.coins[values.token]
-      && calculateTotalBalance(userObjects.coins[values.token])
-    console.log('selectedTokenBalance', selectedTokenBalance, selectedTokenBalance && formatBalance(selectedTokenBalance))
-    setFormData({
-      ...values,
-      tokenBalance: selectedTokenBalance && formatBalance(selectedTokenBalance) || '0'
-    })
-    console.log('Form submitted with values:', formData)
-
-    router.push("/recipient")
+    // TODO: Implement token locking logic
+    console.log('Form submitted with values:', values);
+    toast({
+      title: "Lock Request Submitted",
+      description: "Your tokens will be locked until the unlock date.",
+    });
+    router.push("/dashboard");
   }
+
+  const getLockEndDate = (duration: string) => {
+    const now = new Date();
+    switch (duration) {
+      case "3months":
+        return new Date(now.setMonth(now.getMonth() + 3));
+      case "6months":
+        return new Date(now.setMonth(now.getMonth() + 6));
+      case "1year":
+        return new Date(now.setFullYear(now.getFullYear() + 1));
+      case "2years":
+        return new Date(now.setFullYear(now.getFullYear() + 2));
+      default:
+        return now;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-2xl space-y-8">
         <div className="space-y-2">
-          <div className="text-sm text-muted-foreground">STEP 1</div>
-          <h1 className="text-2xl font-semibold text-foreground">Schedule</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Lock Tokens</h1>
+          <p className="text-sm text-muted-foreground">
+            Select tokens to lock and choose a duration. Locked tokens cannot be traded until the unlock date.
+          </p>
         </div>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="token"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Token</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="w-full border-input bg-background">
-                        <SelectValue>
-                          {userObjects?.coins[field.value] && (
-                            <TokenDisplay
-                              coinType={field.value}
-                              coins={userObjects.coins[field.value]}
-                            />
-                          )}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {userObjects && Object.entries(userObjects.coins).map(([coinType, coins]) => (
-                        <SelectItem key={coinType} value={coinType}>
-                          <TokenDisplay coinType={coinType} coins={coins} />
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="space-y-2">
-              <FormLabel>Vesting Duration</FormLabel>
-              <div className="flex gap-2">
+            <Card className="p-6">
+              <div className="space-y-6">
                 <FormField
                   control={form.control}
-                  name="vestingDuration.value"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="1"
-                          className="border-input bg-background"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="vestingDuration.unit"
+                  name="token"
                   render={({ field }) => (
                     <FormItem>
-                      <Select
-                        onValueChange={field.onChange}
+                      <FormLabel>Select Token</FormLabel>
+                      <Select 
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          updateSelectedTokenBalance(value);
+                        }} 
                         defaultValue={field.value}
                       >
                         <FormControl>
-                          <SelectTrigger className="w-[120px] border-input bg-background">
-                            <SelectValue />
+                          <SelectTrigger className="w-full border-input bg-background">
+                            <SelectValue>
+                              {userObjects?.coins[field.value] && (
+                                <TokenDisplay
+                                  coinType={field.value}
+                                  coins={userObjects.coins[field.value]}
+                                />
+                              )}
+                            </SelectValue>
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="month">Month</SelectItem>
-                          <SelectItem value="year">Year</SelectItem>
+                          {userObjects && Object.entries(userObjects.coins).map(([coinType, coins]) => (
+                            <SelectItem key={coinType} value={coinType}>
+                              <TokenDisplay coinType={coinType} coins={coins} />
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Fully vested on {format(calculateEndDate(), "yyyy/MM/dd")}
-              </div>
-            </div>
-
-            <FormField
-              control={form.control}
-              name="unlockSchedule"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Unlock Schedule</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full border-input bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Card>
-              <CardContent className="space-y-4 p-4">
-                <FormField
-                  control={form.control}
-                  name="startDate"
-                  render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <FormLabel>Start Date</FormLabel>
-                      <FormControl>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start border-input bg-background text-left font-normal"
-                            >
-                              <Calendar className="mr-2 size-4" />
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <CalendarComponent
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 <FormField
                   control={form.control}
-                  name="startTime"
+                  name="amount"
                   render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <FormLabel>Start Time (Optional)</FormLabel>
+                    <FormItem>
+                      <FormLabel>Lock Amount</FormLabel>
                       <FormControl>
                         <Input
-                          type="time"
+                          type="number"
+                          placeholder="Enter amount to lock"
                           className="border-input bg-background"
                           {...field}
                         />
                       </FormControl>
+                      <div className="text-sm text-muted-foreground">
+                        Available Balance: {selectedTokenBalance}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </CardContent>
+
+                <FormField
+                  control={form.control}
+                  name="lockDuration"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Lock Duration</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full border-input bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="3months">3 Months</SelectItem>
+                          <SelectItem value="6months">6 Months</SelectItem>
+                          <SelectItem value="1year">1 Year</SelectItem>
+                          <SelectItem value="2years">2 Years</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="text-sm text-muted-foreground">
+                        Unlock Date: {format(getLockEndDate(field.value), "MMMM dd, yyyy")}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </Card>
 
             <Button type="submit" className="w-full" size="lg">
-              Next Step
+              Confirm Lock
             </Button>
           </form>
         </Form>

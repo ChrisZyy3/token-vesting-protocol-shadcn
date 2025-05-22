@@ -112,72 +112,62 @@ export default function Review() {
     const startTimestamp = BigInt(
       Math.floor(formData.startDate.getTime() / 1000)
     )
-    const [coin1] = tx.splitCoins(tx.gas, [1000000])
+    const [coin1] = tx.splitCoins(tx.gas, [100000])
     console.log("coin1", coin1)
     console.log("account.address", account.address)
     const string = "account1"
     const encoder = new TextEncoder()
-    const args = [
-      tx.object(
-        "0xa0b1ae1097dced45ff5a01277f4de2eb21be7b7c08366683aae90078799d5b7f"
-      ), // admin config
-      tx.object(
-        "0x664a0d0d39a8ecfb35cdca332a5c462f12f462fd5d1898665afdb418b825b80e"
-      ), // fee table
-      tx.object.clock(), // Clock
-      tx.gas, // coin: Coin<T>
-      tx.gas, // SUI
-      tx.pure.u64(1000), // 总金额
-      tx.pure.u64(3600), // 周期
-      tx.pure.u64(15000000), //每个周期的金额
-      tx.pure.u64(1734404413), // 开始时间
-      tx.pure.u64(0), // 悬崖
-      tx.pure.bool(false), // arg10: 是否可以由发送者取消
-      tx.pure.bool(false), // arg11: 是否可以由接收者取消
-      tx.pure.bool(false), // arg12: 是否可以由发送者转移
-      tx.pure.bool(false), // arg13: 是否可以由接收者转移
-      tx.pure.bool(false), // arg14: 是否可以充值
-      tx.pure.bool(false), // arg15: 是否可以暂停
-      tx.pure.bool(false), // arg16: 是否可以更新费率
-      tx.pure.bool(false), // arg17: 是否自动提款
-      tx.pure.u64(0), // arg18: 提款频率
-      // tx.makeMoveVec({ type: 'u8', elements: ['account1'] }),
-      tx.pure.vector("u8", encoder.encode(string)),
-      tx.pure.address(
-        "0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82"
-      ),
-      tx.pure.address(account.address),
-    ]
-
-    console.log("Transaction Arguments:", {
-      adminConfig: args[0],
-      feeTable: args[1],
-      clock: args[2],
-      coin: args[3],
-      gas: args[4],
-      totalAmount: args[5],
-      period: args[6],
-      amountPerPeriod: args[7],
-      startTime: args[8],
-      cliff: args[9],
-      senderCancel: args[10],
-      recipientCancel: args[11],
-      senderTransfer: args[12],
-      recipientTransfer: args[13],
-      canTopup: args[14],
-      canPause: args[15],
-      canUpdateRate: args[16],
-      autoWithdraw: args[17],
-      withdrawFrequency: args[18],
-      recipients: args[19],
-      partner: args[20],
-      sender: args[21],
-    })
+    // const args = [
+    //   [
+    //     // 按照合约接口文档，依次传入参数
+    //     tx.pure.u64(1), // arg0: 书协议费用合约比（假设10000）
+    //     tx.pure.u64(2),     // arg1: 交易费用
+    //     tx.pure.u64(new Date().getTime()),     // arg2: 创建时间戳
+    //     tx.object(coin1),   // arg3: 要锁定的币
+    //     tx.gas,   // arg4: SUI币（用于支付交易费）
+    //     tx.pure.u64(666),  // arg5: 分配总金额
+    //     tx.pure.u64(new Date().getTime()),     // arg6: 开始时间
+    //     tx.pure.u64(new Date().getTime()),     // arg7: 解锁时间
+    //     tx.pure.u64(new Date().getTime()),     // arg8: 结束时间
+    //     tx.pure.address(account.address), // arg20: 接收方地址
+    //     // tx.object(tx.txContext), // arg22: TxContext
+    //     ]
+    // ]
+    // const args = [
+    //   tx.object(
+    //     "0xa0b1ae1097dced45ff5a01277f4de2eb21be7b7c08366683aae90078799d5b7f"
+    //   ), // admin config
+    //   tx.object(
+    //     "0x664a0d0d39a8ecfb35cdca332a5c462f12f462fd5d1898665afdb418b825b80e"
+    //   ), // fee table
+    //   tx.object.clock(), // Clock
+    //   tx.gas, // coin: Coin<T>
+    //   tx.gas, // SUI
+    //   tx.pure.u64(1000), // 总金额
+    //   tx.pure.u64(3600), // 周期
+    //   tx.pure.u64(15000000), //每个周期的金额
+    //   tx.pure.u64(1734404413), // 开始时间
+    //   tx.pure.u64(0), // 悬崖
+    //   tx.pure.bool(false), // arg10: 是否可以由发送者取消
+    //   tx.pure.bool(false), // arg11: 是否可以由接收者取消
+    //   tx.pure.bool(false), // arg12: 是否可以由发送者转移
+    //   tx.pure.bool(false), // arg13: 是否可以由接收者转移
+    //   tx.pure.bool(false), // arg14: 是否可以充值
+    //   tx.pure.bool(false), // arg15: 是否可以暂停
+    //   tx.pure.bool(false), // arg16: 是否可以更新费率
+    //   tx.pure.bool(false), // arg17: 是否自动提款
+    //   tx.pure.u64(0), // arg18: 提款频率
+    //   // tx.makeMoveVec({ type: 'u8', elements: ['account1'] }),
+    //   tx.pure.vector("u8", encoder.encode(string)),
+    //   tx.pure.address(
+    //     "0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82"
+    //   ),
+    //   tx.pure.address(account.address),
+    // ]
 
     tx.moveCall({
       target: `${packageId}::protocol::create`,
       // arguments: args,
-
       // arguments: [
       //   tx.object(
       //     "0xe57a675ddaffce44dc72f2930539309a40dbee09b2fe79141b65d4370b8dc3c8"
@@ -196,21 +186,34 @@ export default function Review() {
       //     "0x19414683da3789f30477281c76a9eabf968539bd36007d39b228335d65299fb4"
       //   ),
       // ],
-      arguments: [
-        tx.pure.u64(0), // fee
-        tx.pure.u64(1111), // title
-        // tx.gas, // coin: Coin<T>
-        tx.object(coin1),
-        tx.gas,
-        tx.pure.u64(666), // start
-        tx.pure.u64(20), // cliff
-        tx.pure.u64(1734404413), // senderCancel
-        tx.pure.vector("u8", encoder.encode(string)),
-        tx.pure.address(
-          "0x19414683da3789f30477281c76a9eabf968539bd36007d39b228335d65299fb4"
-        ),
+      // arguments: [
+      //   tx.pure.u64(0), // fee
+      //   tx.pure.u64(1111), // title
+      //   // tx.gas, // coin: Coin<T>
+      //   tx.object(coin1),
+      //   tx.gas,
+      //   tx.pure.u64(666), // start
+      //   tx.pure.u64(20), // cliff
+      //   tx.pure.u64(1734404413), // senderCancel
+      //   tx.pure.vector("u8", encoder.encode(string)),
+      //   tx.pure.address(
+      //     "0x19414683da3789f30477281c76a9eabf968539bd36007d39b228335d65299fb4"
+      //   ),
+      // ],
+      arguments:[
+      // // 按照合约接口文档，依次传入参数
+      tx.pure.u64(10000), // arg0: 书协议费用合约比（假设10000）
+      tx.pure.u64(0),     // arg1: 交易费用
+      tx.pure.u64(startTimestamp),     // arg2: 创建时间戳
+      tx.object(coin1),   // arg3: 要锁定的币
+      tx.gas,   // arg4: SUI币（用于支付交易费）
+      tx.pure.u64(666),  // arg5: 分配总金额
+      tx.pure.u64(startTimestamp),     // arg6: 开始时间
+      tx.pure.u64(startTimestamp),     // arg7: 解锁时间
+      tx.pure.u64(startTimestamp),     // arg8: 结束时间
+      tx.pure.address(account.address), // arg20: 接收方地址
+      // tx.object(tx.txContext), // arg22: TxContext
       ],
-
       typeArguments: ["0x2::sui::SUI"],
     })
 

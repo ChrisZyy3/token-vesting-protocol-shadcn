@@ -13,10 +13,10 @@ export const siteConfig = {
       title: "Create",
       href: "/create",
     },
-    {
-      title: "List",
-      href: "/list",
-    },
+    // {
+    //   title: "List",
+    //   href: "/list",
+    // },
     // {
     //   title: "Balance",
     //   href: "/balance",

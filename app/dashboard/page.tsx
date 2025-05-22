@@ -17,7 +17,7 @@ interface VestingSchedule {
   startDate: string;
   endDate: string;
   nextUnlock: string;
-  status: 'active' | 'pending' | 'completed';
+  status: 'active' | 'completed';
   progress: number;
   claimableAmount: string;
 }
@@ -43,20 +43,6 @@ export default function Dashboard() {
         progress: 25,
         claimableAmount: '500',
       },
-      {
-        id: '0x456',
-        tokenName: 'USD Coin',
-        tokenSymbol: 'USDC',
-        sender: '0x456...def',
-        totalAmount: '5000',
-        vestedAmount: '0',
-        startDate: '2024-04-01',
-        endDate: '2024-10-01',
-        nextUnlock: '2024-04-01',
-        status: 'pending',
-        progress: 0,
-        claimableAmount: '0',
-      },
     ]);
   }, []);
 
@@ -65,7 +51,7 @@ export default function Dashboard() {
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-semibold text-foreground">Connect Your Wallet</h2>
-          <p className="mt-2 text-muted-foreground">Please connect your wallet to view your vesting schedules</p>
+          <p className="mt-2 text-muted-foreground">Please connect your wallet to view your locked tokens</p>
         </div>
       </div>
     );
@@ -75,25 +61,25 @@ export default function Dashboard() {
     <div className="container py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">My Vesting Dashboard</h1>
+        <h1 className="text-3xl font-bold text-foreground">Locked Tokens Dashboard</h1>
         <p className="mt-2 text-muted-foreground">
-          Track your vesting schedules and upcoming unlocks
+          Track your locked tokens and upcoming unlocks
         </p>
       </div>
 
       {/* Stats Overview */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <Wallet className="size-4 text-primary" />
-            <span className="text-sm font-medium text-muted-foreground">Total Contracts</span>
+            <span className="text-sm font-medium text-muted-foreground">Total Locked Tokens</span>
           </div>
           <p className="mt-2 text-2xl font-bold text-foreground">{vestingSchedules.length}</p>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <Lock className="size-4 text-primary" />
-            <span className="text-sm font-medium text-muted-foreground">Active Vestings</span>
+            <span className="text-sm font-medium text-muted-foreground">Active Locks</span>
           </div>
           <p className="mt-2 text-2xl font-bold text-foreground">
             {vestingSchedules.filter(s => s.status === 'active').length}
@@ -102,17 +88,17 @@ export default function Dashboard() {
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <Clock className="size-4 text-primary" />
-            <span className="text-sm font-medium text-muted-foreground">Pending Start</span>
+            <span className="text-sm font-medium text-muted-foreground">Next Unlock</span>
           </div>
           <p className="mt-2 text-2xl font-bold text-foreground">
-            {vestingSchedules.filter(s => s.status === 'pending').length}
+            {vestingSchedules.length > 0 ? vestingSchedules[0].nextUnlock : 'No active locks'}
           </p>
         </Card>
       </div>
 
-      {/* Vesting Schedules */}
+      {/* Locked Tokens List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-foreground">Vesting Schedules</h2>
+        <h2 className="text-xl font-semibold text-foreground">Locked Tokens</h2>
         {vestingSchedules.map((schedule) => (
           <Card key={schedule.id} className="overflow-hidden">
             <div className="border-b border-border p-4 dark:border-border/50">
@@ -122,14 +108,14 @@ export default function Dashboard() {
                     {schedule.tokenName}
                     <span className="ml-2 text-sm text-muted-foreground">({schedule.tokenSymbol})</span>
                   </h3>
-                  <p className="text-sm text-muted-foreground">From: {schedule.sender}</p>
+                  <p className="text-sm text-muted-foreground">Locked Amount: {schedule.totalAmount} {schedule.tokenSymbol}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-medium text-foreground">{schedule.vestedAmount} / {schedule.totalAmount}</p>
-                  <p className="text-sm text-muted-foreground">{schedule.progress}% Vested</p>
+                  <p className="text-sm text-muted-foreground">{schedule.progress}% Unlocked</p>
                   {schedule.claimableAmount !== '0' && (
                     <p className="mt-1 text-sm font-medium text-primary">
-                      {schedule.claimableAmount} {schedule.tokenSymbol} Available
+                      {schedule.claimableAmount} {schedule.tokenSymbol} Available to Claim
                     </p>
                   )}
                 </div>
@@ -138,11 +124,11 @@ export default function Dashboard() {
             </div>
             <div className="grid gap-4 p-4 sm:grid-cols-3">
               <div>
-                <p className="text-sm text-muted-foreground">Start Date</p>
+                <p className="text-sm text-muted-foreground">Lock Start</p>
                 <p className="font-medium text-foreground">{schedule.startDate}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">End Date</p>
+                <p className="text-sm text-muted-foreground">Lock End</p>
                 <p className="font-medium text-foreground">{schedule.endDate}</p>
               </div>
               <div>
@@ -159,7 +145,7 @@ export default function Dashboard() {
                 <button
                   className="flex items-center gap-2 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30 dark:shadow-primary/10 dark:hover:shadow-primary/20"
                   onClick={() => {
-                    // TODO: 处理 claim 逻辑
+                    // TODO: Implement claim logic
                     console.log('Claiming tokens:', schedule.id);
                   }}
                 >
