@@ -128,12 +128,33 @@ export default function CreatePage() {
     // 1. 获取表单数据
     let { amount, token, lockDuration } = values;
 
+    // 2. 获取选中的coin对象
+    if (!userObjects?.coins[token] || userObjects.coins[token].length === 0) {
+      toast({
+        title: "Error",
+        description: "No coins available for selected token",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // 获取第一个coin对象的objectId
+    const coinObjectId = userObjects.coins[token][0].data?.objectId;
+    if (!coinObjectId) {
+      toast({
+        title: "Error",
+        description: "Failed to get coin object ID",
+        variant: "destructive"
+      });
+      return;
+    }
+    console.warn('id', token, coinObjectId)
+
     // 2. 处理时间戳
     const now = Math.floor(Date.now() / 1000);
-    const startTimestamp = new Date(now).getTime();
-    const endTimestamp = startTimestamp + 60 * 1000; // 一分钟后
+    const startTimestamp = 1000000000;
+    const endTimestamp = startTimestamp + 86400; // 一分钟后，暂时写死，后面根据入参
 
-    amount = 1
     let FEE_PERCENTAGE = 100
     let SUI_PAYMENT = 1000000
 
@@ -146,8 +167,8 @@ export default function CreatePage() {
     // 4. 拆分出要锁定的token
     // const [coinToLock] = tx.splitCoins(tx.gas, [BigInt(amount)]);
     const amountToSplit = amount * 1.01
-    const splitCoinsArr = tx.splitCoins(tx.gas, [amountToSplit, SUI_PAYMENT]);
-
+    const [splitCoins1] = tx.splitCoins(tx.object(coinObjectId), [amountToSplit]);
+    // const paymentSuiCoin = tx.splitCoins(tx.gas, [SUI_PAYMENT]);
     // 打印所有参数，便于调试
     console.log("锁仓参数：", {
       amount,
@@ -162,18 +183,8 @@ export default function CreatePage() {
     // 获取当前钱包地址
     const walletAddress = account?.address;
     console.log("当前钱包地址：", walletAddress);
-
-    // 拆分 tx.gas（默认Gas Coin）
     // 注意：拆分金额要用 BigInt，0.1 SUI = 0.1 * 1_000_000_000n = 100_000_000n 基础单位是9位小数
-
-    // 拆分出 0.1 SUI
-
     // 0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82 小号地址
-    // 给目标地址转账拆分出来的0.1 SUI
-    // tx.transferObjects([splitCoinsArr[0]], tx.pure.address('0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82'));
-    // 签名并执行交易
-    // const result = await signAndExecute({ transaction: tx });
-
     // return;
     const callResponse = tx.moveCall({
       target: `${packageId}::protocol::create`,
@@ -181,64 +192,17 @@ export default function CreatePage() {
         tx.pure.u64(FEE_PERCENTAGE),                // 协议费用百分比
         tx.pure.u64(SUI_PAYMENT),                    // 交易费用
         tx.pure.u64(startTimestamp),       // 创建时间戳
-        tx.object(splitCoinsArr[0]),             // 要锁定的代币
-        tx.object(splitCoinsArr[1]),                      // SUI币
+        tx.object(splitCoins1),             // 要锁定的代币
+        tx.gas,                      // SUI币
         tx.pure.u64(amount),        // 合约总金额
         tx.pure.u64(startTimestamp),       // 开始时间
         tx.pure.u64(endTimestamp),         // 结束时间
         tx.pure.address('0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82'),  // 接收方地址（自己）
       ],
-      typeArguments: ['0x2::sui::SUI']
-      // arguments: [
-      //   tx.object(
-      //     "0xe57a675ddaffce44dc72f2930539309a40dbee09b2fe79141b65d4370b8dc3c8"
-      //   ), // admin config
-      //   tx.object(
-      //     "0x63c5568308d688d9fe65ccecc9c9c922b645d6f5b31651e9374e22eeddfebb4b"
-      //   ), // fee table
-      //   tx.object.clock(), // Clock
-      //   tx.object(coin1), // coin: Coin<T>
-      //   tx.gas, // SUI
-      //   tx.pure.u64(1000), // 总金额
-      //   tx.pure.u64(3600), // 周期
-      //   tx.object.clock(), // Clock
-      //   tx.pure.vector("u8", encoder.encode(string)),
-      //   tx.object(
-      //     "0x19414683da3789f30477281c76a9eabf968539bd36007d39b228335d65299fb4"
-      //   ),
-      // ],
-      // arguments: [
-      //   tx.pure.u64(0), // fee
-      //   tx.pure.u64(1111), // title
-      //   // tx.gas, // coin: Coin<T>
-      //   tx.object(coin1),
-      //   tx.gas,
-      //   tx.pure.u64(666), // start
-      //   tx.pure.u64(20), // cliff
-      //   tx.pure.u64(1734404413), // senderCancel
-      //   tx.pure.vector("u8", encoder.encode(string)),
-      //   tx.pure.address(
-      //     "0x19414683da3789f30477281c76a9eabf968539bd36007d39b228335d65299fb4"
-      //   ),
-      // ],
-      // arguments: [
-      //   // // 按照合约接口文档，依次传入参数
-      //   tx.pure.u64(10000), // arg0: 书协议费用合约比（假设10000）
-      //   tx.pure.u64(0),     // arg1: 交易费用
-      //   tx.pure.u64(startTimestamp),     // arg2: 创建时间戳
-      //   tx.object(coin1),   // arg3: 要锁定的币
-      //   tx.gas,   // arg4: SUI币（用于支付交易费）
-      //   tx.pure.u64(666),  // arg5: 分配总金额
-      //   tx.pure.u64(startTimestamp),     // arg6: 开始时间
-      //   tx.pure.u64(startTimestamp),     // arg7: 解锁时间
-      //   tx.pure.u64(startTimestamp),     // arg8: 结束时间
-      //   tx.pure.address(account.address), // arg20: 接收方地址
-      //   // tx.object(tx.txContext), // arg22: TxContext
-      // ],
-      // typeArguments: [],
+      typeArguments: [token], // 类型参数
     })
-    console.warn('callresp',callResponse)
-    // tx.mergeCoins()
+    // tx.mergeCoins(tx.object(coinObjectId), [splitCoinsRemain]);
+
 
     signAndExecute(
       {
