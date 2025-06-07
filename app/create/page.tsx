@@ -31,6 +31,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { packageId, suiClient } from "@/config";
 import { Transaction } from "@mysten/sui/transactions"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function formatCoinType(coinType: string, maxLength: number = 10): string {
   if (coinType.length <= maxLength) return coinType;
@@ -48,8 +56,11 @@ const formSchema = z.object({
   }).refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Please enter a valid amount",
   }),
-  lockDuration: z.enum(["3months", "6months", "1year", "2years"], {
-    required_error: "Please select a lock duration",
+  unlockDate: z.date({
+    required_error: "Please select an unlock date",
+  }),
+  unlockTime: z.string({
+    required_error: "Please select an unlock time",
   }),
 });
 
@@ -75,12 +86,18 @@ export default function CreatePage() {
   const [userObjects, setUserObjects] = useState<CategorizedObjects | null>(null);
   const [selectedTokenBalance, setSelectedTokenBalance] = useState<string>("0");
 
+  // Calculate default unlock time (3 minutes from now)
+  const now = new Date();
+  const defaultUnlockTime = new Date(now.getTime() + 3 * 60000);
+  const formattedDefaultUnlockTime = `${defaultUnlockTime.getHours().toString().padStart(2, '0')}:${defaultUnlockTime.getMinutes().toString().padStart(2, '0')}`;
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       token: "",
       amount: "",
-      lockDuration: "3months",
+      unlockDate: new Date(), // Default to current date
+      unlockTime: formattedDefaultUnlockTime, // Default to 3 minutes from now
     },
   });
 
@@ -117,18 +134,23 @@ export default function CreatePage() {
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    // Combine unlock date and unlock time into a single timestamp
+    const unlockDate = values.unlockDate;
+    const [hours, minutes] = values.unlockTime.split(':').map(Number);
+    unlockDate.setHours(hours, minutes, 0, 0);
+    const unlockTimestamp = Math.floor(unlockDate.getTime() / 1000);
+
     // TODO: Implement token locking logic
     console.log('Form submitted with values:', values, account?.address);
     toast({
       title: "Lock Request Submitted",
       description: "Your tokens will be locked until the unlock date.",
     });
-    // router.push("/dashboard"); 
 
-    // 1. 获取表单数据
-    let { amount, token, lockDuration } = values;
+    // 1. Get form data
+    const { amount: amountStr, token } = values;
 
-    // 2. 获取选中的coin对象
+    // 2. Get selected coin object
     if (!userObjects?.coins[token] || userObjects.coins[token].length === 0) {
       toast({
         title: "Error",
@@ -138,7 +160,7 @@ export default function CreatePage() {
       return;
     }
 
-    // 获取第一个coin对象的objectId
+    // Get first coin object's objectId
     const coinObjectId = userObjects.coins[token][0].data?.objectId;
     if (!coinObjectId) {
       toast({
@@ -148,65 +170,61 @@ export default function CreatePage() {
       });
       return;
     }
-    console.warn('id', token, coinObjectId)
 
-    // 2. 处理时间戳
-    const now = Math.floor(Date.now() / 1000);
-    const startTimestamp = 1000000000;
-    const endTimestamp = startTimestamp + 86400; // 一分钟后，暂时写死，后面根据入参
+    // 2. Process timestamp
+    const startTimestamp = Math.floor(Date.now() / 1000);
+    // Use unlockTimestamp calculated from form values
+    const endTimestamp = unlockTimestamp; // Use the calculated unlock timestamp
 
-    let FEE_PERCENTAGE = 100
-    let SUI_PAYMENT = 1000000
+    const FEE_PERCENTAGE = 100;
+    const SUI_PAYMENT = 1000000;
 
-    // 3. 构造交易
+    // 3. Construct transaction
     const tx = new Transaction();
-    tx.setGasBudget(1000000)
-    amount = amount * 1000000000
-    // let amount = (amount*1.01) * 1000000000
-    console.warn(amount)
-    // 4. 拆分出要锁定的token
-    // const [coinToLock] = tx.splitCoins(tx.gas, [BigInt(amount)]);
-    const amountToSplit = amount * 1.01
+    tx.setGasBudget(1000000000);
+
+    // Convert amount to base units
+    const amountNum = Number(amountStr);
+    const amountInBaseUnits = BigInt(Math.floor(amountNum * 1000000000));
+    const amountToSplit = BigInt(Math.floor(amountNum * 1000000000 * 1.01));
+
     const [splitCoins1] = tx.splitCoins(tx.object(coinObjectId), [amountToSplit]);
-    // const paymentSuiCoin = tx.splitCoins(tx.gas, [SUI_PAYMENT]);
-    // 打印所有参数，便于调试
-    console.log("锁仓参数：", {
-      amount,
+
+    // Log all parameters for debugging
+    console.log("Lock parameters:", {
+      amount: amountInBaseUnits.toString(),
       token,
-      lockDuration,
-      account,
       startTimestamp,
       endTimestamp,
-      // coinToLock,
       address: account?.address
     });
-    // 获取当前钱包地址
+
     const walletAddress = account?.address;
-    console.log("当前钱包地址：", walletAddress);
-    // 注意：拆分金额要用 BigInt，0.1 SUI = 0.1 * 1_000_000_000n = 100_000_000n 基础单位是9位小数
-    // 0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82 小号地址
-    // return;
-    const callResponse = tx.moveCall({
+    console.log("Current wallet address:", walletAddress);
+
+
+
+    tx.moveCall({
       target: `${packageId}::protocol::create`,
       arguments: [
-        tx.pure.u64(FEE_PERCENTAGE),                // 协议费用百分比
-        tx.pure.u64(SUI_PAYMENT),                    // 交易费用
-        tx.pure.u64(startTimestamp),       // 创建时间戳
-        tx.object(splitCoins1),             // 要锁定的代币
-        tx.gas,                      // SUI币
-        tx.pure.u64(amount),        // 合约总金额
-        tx.pure.u64(startTimestamp),       // 开始时间
-        tx.pure.u64(endTimestamp),         // 结束时间
-        tx.pure.address('0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82'),  // 接收方地址（自己）
+        tx.pure.u64(FEE_PERCENTAGE),
+        tx.pure.u64(SUI_PAYMENT),
+        tx.pure.u64(startTimestamp), // Using current time as create timestamp
+        tx.object(splitCoins1),
+        tx.gas,
+        tx.pure.u64(amountInBaseUnits),
+        tx.pure.u64(startTimestamp), // Using current time as start time
+        tx.pure.u64(endTimestamp), // Using calculated unlock timestamp as end time
+        tx.pure.address('0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82'),
       ],
-      typeArguments: [token], // 类型参数
-    })
-    // tx.mergeCoins(tx.object(coinObjectId), [splitCoinsRemain]);
+      typeArguments: [token],
+    });
 
+    tx.mergeCoins(tx.object(coinObjectId), [splitCoins1]);
 
     signAndExecute(
       {
-        transaction: tx,
+        transaction: tx as any, // Type assertion to fix Transaction type mismatch
         option: {
           showEffects: true,
           showBalanceChanges: true,
@@ -219,16 +237,16 @@ export default function CreatePage() {
             title: "Transaction Successful",
             description: "Your vesting contract has been created successfully.",
             variant: "default",
-          })
+          });
 
           const response = await suiClient.waitForTransaction({
             digest: digest,
             options: {
               showEffects: true,
             },
-          })
-          console.log("effects", response)
-          // router.push("/dashboard")
+          });
+          console.log("effects", response.effects,);
+          console.log('status', response?.effects?.status?.status)
         },
         onError: (error) => {
           toast({
@@ -237,199 +255,11 @@ export default function CreatePage() {
               error.message ||
               "Failed to create vesting contract. Please try again.",
             variant: "destructive",
-          })
-          console.error("Error:", error)
+          });
+          console.error("Error:", error);
         },
       }
-    )
-  }
-
-
-
-  const getLockEndDate = (duration: string) => {
-    const now = new Date();
-    switch (duration) {
-      case "3months":
-        return new Date(now.setMonth(now.getMonth() + 3));
-      case "6months":
-        return new Date(now.setMonth(now.getMonth() + 6));
-      case "1year":
-        return new Date(now.setFullYear(now.getFullYear() + 1));
-      case "2years":
-        return new Date(now.setFullYear(now.getFullYear() + 2));
-      default:
-        return now;
-    }
-  };
-
-  const handleCreateLock = () => {
-    const values = form.getValues();
-    console.log('Form Values:', values);
-    if (!account?.address) return // 添加检查
-    toast({
-      title: "Transaction Submitted",
-      description: "Your transaction is being processed...",
-    })
-
-    const tx = new Transaction()
-    // tx.setGasBudget(1000000)
-
-    // // 计算 unlock schedule 对应的数值
-    // const unlockScheduleMap = {
-    //   weekly: BigInt(7 * 24 * 60 * 60), // 7 days in seconds
-    //   "bi-weekly": BigInt(14 * 24 * 60 * 60),
-    //   monthly: BigInt(30 * 24 * 60 * 60),
-    //   quarterly: BigInt(90 * 24 * 60 * 60),
-    // }
-    // // 计算 duration (转换为秒)
-    // const durationInSeconds = BigInt(
-    //   formData.vestingDuration.unit === "month"
-    //     ? parseInt(formData.vestingDuration.value) * 30 * 24 * 60 * 60
-    //     : parseInt(formData.vestingDuration.value) * 365 * 24 * 60 * 60
-    // )
-
-    // // 转换开始时间为 Unix timestamp
-    // const startTimestamp = BigInt(
-    //   Math.floor(formData.startDate.getTime() / 1000)
-    // )
-    // const [coin1] = tx.splitCoins(tx.gas, [100000])
-    // console.log("coin1", coin1)
-    // console.log("account.address", account.address)
-    // const string = "account1"
-    // const encoder = new TextEncoder()
-    // const args = [
-    //   [
-    //     // 按照合约接口文档，依次传入参数
-    //     tx.pure.u64(1), // arg0: 书协议费用合约比（假设10000）
-    //     tx.pure.u64(2),     // arg1: 交易费用
-    //     tx.pure.u64(new Date().getTime()),     // arg2: 创建时间戳
-    //     tx.object(coin1),   // arg3: 要锁定的币
-    //     tx.gas,   // arg4: SUI币（用于支付交易费）
-    //     tx.pure.u64(666),  // arg5: 分配总金额
-    //     tx.pure.u64(new Date().getTime()),     // arg6: 开始时间
-    //     tx.pure.u64(new Date().getTime()),     // arg7: 解锁时间
-    //     tx.pure.u64(new Date().getTime()),     // arg8: 结束时间
-    //     tx.pure.address(account.address), // arg20: 接收方地址
-    //     // tx.object(tx.txContext), // arg22: TxContext
-    //     ]
-    // ]
-    // const args = [
-    //   tx.object(
-    //     "0xa0b1ae1097dced45ff5a01277f4de2eb21be7b7c08366683aae90078799d5b7f"
-    //   ), // admin config
-    //   tx.object(
-    //     "0x664a0d0d39a8ecfb35cdca332a5c462f12f462fd5d1898665afdb418b825b80e"
-    //   ), // fee table
-    //   tx.object.clock(), // Clock
-    //   tx.gas, // coin: Coin<T>
-    //   tx.gas, // SUI
-    //   tx.pure.u64(1000), // 总金额
-    //   tx.pure.u64(3600), // 周期
-    //   tx.pure.u64(15000000), //每个周期的金额
-    //   tx.pure.u64(1734404413), // 开始时间
-    //   tx.pure.u64(0), // 悬崖
-    //   tx.pure.bool(false), // arg10: 是否可以由发送者取消
-    //   tx.pure.bool(false), // arg11: 是否可以由接收者取消
-    //   tx.pure.bool(false), // arg12: 是否可以由发送者转移
-    //   tx.pure.bool(false), // arg13: 是否可以由接收者转移
-    //   tx.pure.bool(false), // arg14: 是否可以充值
-    //   tx.pure.bool(false), // arg15: 是否可以暂停
-    //   tx.pure.bool(false), // arg16: 是否可以更新费率
-    //   tx.pure.bool(false), // arg17: 是否自动提款
-    //   tx.pure.u64(0), // arg18: 提款频率
-    //   // tx.makeMoveVec({ type: 'u8', elements: ['account1'] }),
-    //   tx.pure.vector("u8", encoder.encode(string)),
-    //   tx.pure.address(
-    //     "0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82"
-    //   ),
-    //   tx.pure.address(account.address),
-    // ]
-
-    // tx.moveCall({
-    //   target: `${packageId}::protocol::create`,
-    //   // arguments: args,
-    //   // arguments: [
-    //   //   tx.object(
-    //   //     "0xe57a675ddaffce44dc72f2930539309a40dbee09b2fe79141b65d4370b8dc3c8"
-    //   //   ), // admin config
-    //   //   tx.object(
-    //   //     "0x63c5568308d688d9fe65ccecc9c9c922b645d6f5b31651e9374e22eeddfebb4b"
-    //   //   ), // fee table
-    //   //   tx.object.clock(), // Clock
-    //   //   tx.object(coin1), // coin: Coin<T>
-    //   //   tx.gas, // SUI
-    //   //   tx.pure.u64(1000), // 总金额
-    //   //   tx.pure.u64(3600), // 周期
-    //   //   tx.object.clock(), // Clock
-    //   //   tx.pure.vector("u8", encoder.encode(string)),
-    //   //   tx.object(
-    //   //     "0x19414683da3789f30477281c76a9eabf968539bd36007d39b228335d65299fb4"
-    //   //   ),
-    //   // ],
-    //   // arguments: [
-    //   //   tx.pure.u64(0), // fee
-    //   //   tx.pure.u64(1111), // title
-    //   //   // tx.gas, // coin: Coin<T>
-    //   //   tx.object(coin1),
-    //   //   tx.gas,
-    //   //   tx.pure.u64(666), // start
-    //   //   tx.pure.u64(20), // cliff
-    //   //   tx.pure.u64(1734404413), // senderCancel
-    //   //   tx.pure.vector("u8", encoder.encode(string)),
-    //   //   tx.pure.address(
-    //   //     "0x19414683da3789f30477281c76a9eabf968539bd36007d39b228335d65299fb4"
-    //   //   ),
-    //   // ],
-    //   arguments:[
-    //   // // 按照合约接口文档，依次传入参数
-    //   tx.pure.u64(10000), // arg0: 书协议费用合约比（假设10000）
-    //   tx.pure.u64(0),     // arg1: 交易费用
-    //   tx.pure.u64(startTimestamp),     // arg2: 创建时间戳
-    //   tx.object(coin1),   // arg3: 要锁定的币
-    //   tx.gas,   // arg4: SUI币（用于支付交易费）
-    //   tx.pure.u64(666),  // arg5: 分配总金额
-    //   tx.pure.u64(startTimestamp),     // arg6: 开始时间
-    //   tx.pure.u64(startTimestamp),     // arg7: 解锁时间
-    //   tx.pure.u64(startTimestamp),     // arg8: 结束时间
-    //   tx.pure.address(account.address), // arg20: 接收方地址
-    //   // tx.object(tx.txContext), // arg22: TxContext
-    //   ],
-    //   typeArguments: ["0x2::sui::SUI"],
-    // })
-
-    // signAndExecute(
-    //   {
-    //     transaction: tx,
-    //   },
-    //   {
-    //     onSuccess: async ({ digest }) => {
-    //       toast({
-    //         title: "Transaction Successful",
-    //         description: "Your vesting contract has been created successfully.",
-    //         variant: "default",
-    //       })
-
-    //       const { effects } = await suiClient.waitForTransaction({
-    //         digest: digest,
-    //         options: {
-    //           showEffects: true,
-    //         },
-    //       })
-    //       console.log("effects", effects)
-    //       router.push("/dashboard")
-    //     },
-    //     onError: (error) => {
-    //       toast({
-    //         title: "Transaction Failed",
-    //         description:
-    //           error.message ||
-    //           "Failed to create vesting contract. Please try again.",
-    //         variant: "destructive",
-    //       })
-    //       console.error("Error:", error)
-    //     },
-    //   }
-    // )
+    );
   }
 
   return (
@@ -438,7 +268,7 @@ export default function CreatePage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-foreground">Lock Tokens</h1>
           <p className="text-sm text-muted-foreground">
-            Select tokens to lock and choose a duration. Locked tokens cannot be traded until the unlock date.
+            Select tokens to lock and choose an unlock date and time. Locked tokens cannot be traded until the unlock date.
           </p>
         </div>
 
@@ -506,39 +336,71 @@ export default function CreatePage() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="lockDuration"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lock Duration</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="unlockDate"
+                    render={({ field }) => (
+                      <FormItem className="">
+                        <FormLabel>Unlock Date</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) =>
+                                date < new Date() // Disable past dates
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="unlockTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Unlock Time</FormLabel>
                         <FormControl>
-                          <SelectTrigger className="w-full border-input bg-background">
-                            <SelectValue />
-                          </SelectTrigger>
+                          <Input
+                            type="time"
+                            className="border-input bg-background"
+                            {...field}
+                          />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="3months">3 Months</SelectItem>
-                          <SelectItem value="6months">6 Months</SelectItem>
-                          <SelectItem value="1year">1 Year</SelectItem>
-                          <SelectItem value="2years">2 Years</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className="text-sm text-muted-foreground">
-                        Unlock Date: {format(getLockEndDate(field.value), "MMMM dd, yyyy")}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             </Card>
 
-            <Button className="w-full" size="lg" onClick={handleCreateLock}>
+            <Button className="w-full" size="lg" >
               Confirm Lock
             </Button>
           </form>
