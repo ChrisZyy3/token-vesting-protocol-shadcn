@@ -161,7 +161,21 @@ export default function CreatePage() {
     }
 
     // Get first coin object's objectId
-    const coinObjectId = userObjects.coins[token][0].data?.objectId;
+    // 取balance最多的object用于split
+    let coinObjectId = userObjects.coins[token]?.[0].data?.objectId;
+    let balance = userObjects.coins[token]?.[0].data?.content?.fields?.balance;
+    if (userObjects?.coins[token]?.length > 1) {
+      for (const coin of userObjects.coins[token]) {
+        console.warn('111',token,coin)
+        const coinBalance = Number(coin.data?.content?.fields?.balance);
+        if (coinBalance && typeof coinBalance === 'number' && coinBalance > balance) {
+          coinObjectId = coin.data?.objectId;
+          balance = coinBalance;
+        }
+      }
+    }
+    // Get first coin object's objectId
+
     if (!coinObjectId) {
       toast({
         title: "Error",
@@ -176,12 +190,12 @@ export default function CreatePage() {
     // Use unlockTimestamp calculated from form values
     const endTimestamp = unlockTimestamp; // Use the calculated unlock timestamp
 
-    const FEE_PERCENTAGE = 100;
-    const SUI_PAYMENT = 1000000;
+    const FEE_PERCENTAGE = 10;
+    const SUI_PAYMENT = 100000;
 
     // 3. Construct transaction
     const tx = new Transaction();
-    tx.setGasBudget(1000000000);
+    tx.setGasBudget(100000000);
 
     // Convert amount to base units
     const amountNum = Number(amountStr);
@@ -202,8 +216,6 @@ export default function CreatePage() {
     const walletAddress = account?.address;
     console.log("Current wallet address:", walletAddress);
 
-
-
     tx.moveCall({
       target: `${packageId}::protocol::create`,
       arguments: [
@@ -215,7 +227,8 @@ export default function CreatePage() {
         tx.pure.u64(amountInBaseUnits),
         tx.pure.u64(startTimestamp), // Using current time as start time
         tx.pure.u64(endTimestamp), // Using calculated unlock timestamp as end time
-        tx.pure.address('0x0aaaaa28558f2c65c2ec0844e775fa7e8f4d2a376780ef1dc150dc5b7c44cf82'),
+        tx.pure.address('0xd42be77af3dd116fccb8c5147971a85ebec9aa2091b171495d716837234de5af'), // 接收方
+        tx.pure.address('0xd42be77af3dd116fccb8c5147971a85ebec9aa2091b171495d716837234de5af'), // 手续费地址
       ],
       typeArguments: [token],
     });
@@ -234,8 +247,7 @@ export default function CreatePage() {
       {
         onSuccess: async ({ digest }) => {
           toast({
-            title: "Transaction Successful",
-            description: "Your vesting contract has been created successfully.",
+            title: "Transaction Processing",
             variant: "default",
           });
 
@@ -247,6 +259,28 @@ export default function CreatePage() {
           });
           console.log("effects", response.effects,);
           console.log('status', response?.effects?.status?.status)
+
+          const newContractObjectId = response.effects?.created?.[1]?.reference.objectId;
+          if (newContractObjectId) {
+            const keyInStorage = JSON.stringify({ newContractObjectId: newContractObjectId, amount: amountInBaseUnits.toString() })
+            window.localStorage.setItem('ELP-newContractObjectId', keyInStorage);
+            console.warn('newContractObjectId', keyInStorage, 'token:', token, 'amount', amountNum)
+            // 成功时弹出提示框
+            toast({
+              title: `Lock Successfully`,
+              description: "Redirecting...",
+              variant: "default",
+            });
+            setTimeout(() => {
+              router.push('/dashboard');
+            }, 3000);
+          } else {
+            toast({
+              title: "Transaction Failed",
+              description: "Failed to create vesting contract. Please try again.",
+              variant: "destructive",
+            })
+          }
         },
         onError: (error) => {
           toast({

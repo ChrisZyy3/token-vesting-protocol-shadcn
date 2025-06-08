@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useCurrentAccount } from "@mysten/dapp-kit";
+import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { ArrowUpRight, Clock, Lock, Wallet } from "lucide-react";
+import { Transaction } from "@mysten/sui/transactions";
+import { useToast } from "@/hooks/use-toast";
+import { packageId, suiClient } from "@/config";
+import { calculateTotalBalance, formatBalance, CategorizedObjects } from "@/utils/assetsHelpers";
 
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { getUserProfile } from "../../lib/contracts"
 
 interface VestingSchedule {
   id: string;
@@ -24,7 +29,141 @@ interface VestingSchedule {
 
 export default function Dashboard() {
   const account = useCurrentAccount();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const { toast } = useToast();
   const [vestingSchedules, setVestingSchedules] = useState<VestingSchedule[]>([]);
+  const [userObjects, setUserObjects] = useState<CategorizedObjects | null>(null);
+
+  useEffect(() => {
+    async function fetchUserProfile() {
+      if (account?.address) {
+        try {
+          const profile = await getUserProfile(account.address)
+          console.log('profile', profile);
+          setUserObjects(profile)
+        } catch (error) {
+          console.error("Error fetching user profile:", error)
+        }
+      }
+    }
+
+    fetchUserProfile()
+  }, [account])
+
+  // Define the claim function
+  const handleClaim = async (schedule: VestingSchedule) => {
+    console.log('Attempting to claim tokens for schedule:', schedule.id);
+
+    if (!account) {
+      toast({
+        title: "Error",
+        description: "Please connect your wallet.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // 暂时写死TOKEN
+    const token = "0x8915a33e466de62e356de9e01038b20db1e80239715158163b774f81bcd291ff::coin::COIN"
+    console.warn('usersob',userObjects)
+    // 2. Get selected coin object
+    if (!userObjects?.coins[token] || userObjects.coins[token].length === 0) {
+      toast({
+        title: "Error",
+        description: "No coins available for selected token",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Get first coin object's objectId
+    const coinObjectId = userObjects.coins[token][0].data?.objectId;
+    if (!coinObjectId) {
+      toast({
+        title: "Error",
+        description: "Failed to get coin object ID",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (schedule.claimableAmount === '0') {
+      toast({
+        title: "Info",
+        description: "No claimable tokens available for this schedule.",
+        variant: "default",
+      });
+      return;
+    }
+
+    const tx = new Transaction();
+    tx.setGasBudget(10000000);
+
+    // Assuming the token type is SUI for now. Replace with actual token type if available in schedule.
+    const tokenType = "0x2::sui::SUI"; // Placeholder - **Replace with actual token type**
+    const adminConfigObjectId = "0xe57a675ddaffce44dc72f2930539309a40dbee09b2fe79141b65d4370b8dc3c8"; // Placeholder - **Replace with actual Admin Config Object ID**
+
+    try {
+      // Convert claimable amount to BigInt
+      const amountToClaim = BigInt(schedule.claimableAmount);
+
+      tx.moveCall({
+        target: `${packageId}::protocol::withdraw`,
+        arguments: [
+          tx.object('0x839986943680a26e657982984ff232d1a567d9649f79571b093bd69a1dc965f4'), // Contract Object ID
+          tx.object.clock, // Admin Config Object ID
+          tx.pure.u64(111), // Amount to withdraw
+        ],
+        typeArguments: ["0x8915a33e466de62e356de9e01038b20db1e80239715158163b774f81bcd291ff::coin::COIN"],
+      });
+
+      signAndExecute(
+        {
+          transaction: tx as any, // Type assertion to fix Transaction type mismatch
+          option: {
+            showEffects: true,
+            showBalanceChanges: true,
+            showInput: true,
+          }
+        },
+        {
+          onSuccess: async ({ digest }) => {
+            
+            toast({
+              title: "Claim Successful",
+              description: `Claim transaction submitted with digest: ${digest}`,
+              variant: "default",
+            });
+            console.log("Claim Transaction Digest:", digest);
+            // Optionally refresh the vesting schedules after a successful claim
+            // fetchVestingSchedules(); // You would need to implement this function
+            const response = await suiClient.waitForTransaction({
+              digest: digest,
+              options: {
+                showEffects: true,
+              },
+            });
+            console.log("effects", response.effects,);
+            console.log('status', response?.effects?.status?.status)
+          },
+          onError: (error) => {
+            toast({
+              title: "Claim Failed",
+              description: error.message || "Failed to claim tokens. Please try again.",
+              variant: "destructive",
+            });
+            console.error("Claim Error:", error);
+          }
+        }
+      );
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to prepare claim transaction.",
+        variant: "destructive",
+      });
+      console.error("Prepare Claim Transaction Error:", error);
+    }
+  };
 
   useEffect(() => {
     // Mock data
@@ -144,10 +283,7 @@ export default function Dashboard() {
               {schedule.claimableAmount !== '0' && (
                 <button
                   className="flex items-center gap-2 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30 dark:shadow-primary/10 dark:hover:shadow-primary/20"
-                  onClick={() => {
-                    // TODO: Implement claim logic
-                    console.log('Claiming tokens:', schedule.id);
-                  }}
+                  onClick={() => handleClaim(schedule)}
                 >
                   <Wallet className="size-4" />
                   Claim Tokens
